@@ -48,9 +48,11 @@ class FirestoreService {
   }
 
   Stream<List<TaskModel>> streamTasks(String uid) {
-    return tasks.where('userId', isEqualTo: uid).orderBy('deadline').snapshots().map(
-      (s) => s.docs.map((d) => TaskModel.fromMap(d.id, d.data())).toList(),
-    );
+    return tasks.where('userId', isEqualTo: uid).snapshots().map((s) {
+      final list = s.docs.map((d) => TaskModel.fromMap(d.id, d.data())).toList();
+      list.sort((a, b) => a.deadline.compareTo(b.deadline));
+      return list;
+    });
   }
 
   Future<void> addTask(TaskModel task) async {

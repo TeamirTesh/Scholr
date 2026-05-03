@@ -33,7 +33,7 @@ class ChatBubble extends StatelessWidget {
                 onPressed: () async {
                   await Clipboard.setData(ClipboardData(text: message.fileUrl!));
                   if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('File link copied')));
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('File link copied'), duration: Duration(seconds: 2)));
                   }
                 },
                 child: const Text('Copy file link'),

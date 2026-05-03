@@ -10,6 +10,7 @@ class TaskCard extends StatefulWidget {
     required this.task,
     required this.onToggle,
     this.onOpen,
+    this.onDelete,
     this.studyBlock,
     this.priorityScore,
     this.initiallyExpanded = false,
@@ -18,6 +19,7 @@ class TaskCard extends StatefulWidget {
   final TaskModel task;
   final VoidCallback onToggle;
   final VoidCallback? onOpen;
+  final VoidCallback? onDelete;
   final StudyBlock? studyBlock;
   final double? priorityScore;
   final bool initiallyExpanded;
@@ -72,9 +74,20 @@ class _TaskCardState extends State<TaskCard> with SingleTickerProviderStateMixin
               ),
               title: Text(widget.task.title),
               subtitle: Text('${widget.task.course} · $relative · ${widget.task.estimatedEffortHours}h'),
-              trailing: IconButton(
-                icon: Icon(_expanded ? Icons.expand_less : Icons.expand_more),
-                onPressed: () => setState(() => _expanded = !_expanded),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (widget.onDelete != null)
+                    IconButton(
+                      icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
+                      onPressed: widget.onDelete,
+                      tooltip: 'Delete task',
+                    ),
+                  IconButton(
+                    icon: Icon(_expanded ? Icons.expand_less : Icons.expand_more),
+                    onPressed: () => setState(() => _expanded = !_expanded),
+                  ),
+                ],
               ),
             ),
             if (_expanded)
@@ -88,7 +101,7 @@ class _TaskCardState extends State<TaskCard> with SingleTickerProviderStateMixin
                       if (score != null) Text('Priority score: ${score.toStringAsFixed(2)}'),
                       if (widget.studyBlock != null)
                         Text(
-                          'Scheduled block: ${formatStudyBlockLine(widget.studyBlock!.scheduledDate, widget.studyBlock!.timeSlot)}',
+                          'Next session: ${formatStudyBlockLine(widget.studyBlock!.scheduledDate, widget.studyBlock!.timeSlot)} · ${widget.studyBlock!.hours.toStringAsFixed(1)}h',
                         ),
                       const SizedBox(height: 6),
                       Text('Deadline: $fullDue'),

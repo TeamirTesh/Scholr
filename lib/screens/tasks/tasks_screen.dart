@@ -17,10 +17,58 @@ class TasksScreen extends StatefulWidget {
 
 class _TasksScreenState extends State<TasksScreen> {
   bool _submittingAdd = false;
+  late Stream<List<TaskModel>> _taskStream;
+
+  @override
+  void initState() {
+    super.initState();
+    final uid = context.read<AuthProvider>().uid!;
+    _taskStream = context.read<TaskProvider>().taskStream(uid);
+  }
+
+  static const _deleteSnackDuration = Duration(seconds: 2);
+
+  void _showTaskDeletedSnackBar(TaskModel backup) {
+    if (!mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.clearSnackBars();
+    messenger.showSnackBar(
+      SnackBar(
+        content: const Text('Task deleted'),
+        duration: _deleteSnackDuration,
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 88),
+        action: SnackBarAction(
+          label: 'Undo',
+          onPressed: () {
+            context.read<TaskProvider>().addTask(
+                  TaskModel(
+                    id: '',
+                    userId: backup.userId,
+                    title: backup.title,
+                    course: backup.course,
+                    courseWeight: backup.courseWeight,
+                    deadline: backup.deadline,
+                    estimatedEffortHours: backup.estimatedEffortHours,
+                    status: backup.status,
+                    createdAt: DateTime.now(),
+                  ),
+                );
+          },
+        ),
+      ),
+    );
+  }
+
+  void _afterDeleteShowSnack(TaskModel backup) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _showTaskDeletedSnackBar(backup);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    final uid = context.read<AuthProvider>().uid!;
     final provider = context.watch<TaskProvider>();
     final expandId = GoRouterState.of(context).uri.queryParameters['expand'];
 
@@ -36,7 +84,7 @@ class _TasksScreenState extends State<TasksScreen> {
                   final added = await context.pushNamed<bool>(AppRoutes.addTask);
                   if (!context.mounted) return;
                   if (added == true) {
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Task added!')));
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Task added!'), duration: Duration(seconds: 2)));
                   }
                 } finally {
                   if (mounted) setState(() => _submittingAdd = false);
@@ -60,9 +108,11 @@ class _TasksScreenState extends State<TasksScreen> {
           ),
           Expanded(
             child: StreamBuilder(
-              stream: provider.taskStream(uid),
+              stream: _taskStream,
               builder: (_, snap) {
-                final raw = snap.data ?? [];
+                if (snap.hasError) return Center(child: Text('Error loading tasks: ${snap.error}'));
+                if (!snap.hasData) return const Center(child: CircularProgressIndicator());
+                final raw = snap.data!;
                 final tasks = provider.applyFilter(raw);
                 final plan = provider.generateStudyPlan(raw);
                 final blockByTask = {for (final b in plan) b.task.id: b};
@@ -81,38 +131,22 @@ class _TasksScreenState extends State<TasksScreen> {
                         padding: const EdgeInsets.only(right: 24),
                         child: const Icon(Icons.delete, color: Colors.white),
                       ),
-                      onDismissed: (_) async {
+                      onDismissed: (_) {
                         final backup = t;
-                        await provider.deleteTask(t);
-                        if (!context.mounted) return;
-                        ScaffoldMessenger.of(context).clearSnackBars();
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: const Text('Task deleted'),
-                            action: SnackBarAction(
-                              label: 'Undo',
-                              onPressed: () async {
-                                await provider.addTask(
-                                  TaskModel(
-                                    id: '',
-                                    userId: backup.userId,
-                                    title: backup.title,
-                                    course: backup.course,
-                                    courseWeight: backup.courseWeight,
-                                    deadline: backup.deadline,
-                                    estimatedEffortHours: backup.estimatedEffortHours,
-                                    status: backup.status,
-                                    createdAt: DateTime.now(),
-                                  ),
-                                );
-                              },
-                            ),
-                          ),
-                        );
+                        provider.deleteTask(t).then((_) {
+                          if (!mounted) return;
+                          _afterDeleteShowSnack(backup);
+                        });
                       },
                       child: TaskCard(
                         task: t,
                         onToggle: () => provider.toggleDone(t),
+                        onDelete: () async {
+                          final backup = t;
+                          await provider.deleteTask(t);
+                          if (!mounted) return;
+                          _afterDeleteShowSnack(backup);
+                        },
                         studyBlock: blockByTask[t.id],
                         priorityScore: provider.priorityScore(t),
                         initiallyExpanded: t.id == expandId,

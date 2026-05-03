@@ -9,8 +9,9 @@ class StudyBlock {
   final TaskModel task;
   final DateTime scheduledDate;
   final String timeSlot;
+  final double hours;
 
-  const StudyBlock({required this.task, required this.scheduledDate, required this.timeSlot});
+  const StudyBlock({required this.task, required this.scheduledDate, required this.timeSlot, required this.hours});
 }
 
 class TaskProvider extends ChangeNotifier {
@@ -40,18 +41,15 @@ class TaskProvider extends ChangeNotifier {
   Future<void> addTask(TaskModel task) async {
     await _firestore.addTask(task);
     await _notification.scheduleDueSoonReminder(task);
-    notifyListeners();
   }
 
   Future<void> toggleDone(TaskModel task) async {
     final next = task.status == 'done' ? 'pending' : 'done';
     await _firestore.updateTaskStatus(task.id, next);
-    notifyListeners();
   }
 
   Future<void> deleteTask(TaskModel task) async {
     await _firestore.deleteTask(task.id);
-    notifyListeners();
   }
 
   List<TaskModel> applyFilter(List<TaskModel> tasks) {
@@ -62,47 +60,83 @@ class TaskProvider extends ChangeNotifier {
 
   List<StudyBlock> generateStudyPlan(List<TaskModel> tasks) {
     final pending = tasks.where((t) => t.status != 'done').toList();
-    final now = DateTime.now();
+    if (pending.isEmpty) return [];
 
-    final scored = pending.map((task) {
-      final score = priorityScore(task, now);
-      return (task: task, score: score);
-    }).toList()
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    const maxHoursPerDay = 5.0;
+    const minChunk = 0.5;
+
+    // Sort highest priority first
+    final sorted = pending
+        .map((t) => (task: t, score: priorityScore(t)))
+        .toList()
       ..sort((a, b) => b.score.compareTo(a.score));
 
-    const slots = ['9:00 AM', '11:00 AM', '1:00 PM', '3:00 PM', '5:00 PM', '7:00 PM'];
-    final scheduled = <String>{};
-    final blocks = <StudyBlock>[];
+    // Remaining daily budget for next 30 days
+    final budget = <DateTime, double>{};
+    for (var i = 0; i < 30; i++) {
+      budget[today.add(Duration(days: i))] = maxHoursPerDay;
+    }
 
-    for (var i = 0; i < scored.length; i++) {
-      final dayOffset = i ~/ slots.length;
-      final slotIndex = i % slots.length;
-      if (dayOffset > 6) break;
+    // Raw chunks before time-slot assignment
+    final chunks = <({TaskModel task, DateTime date, double hours})>[];
 
-      var candidateDay = dayOffset;
-      var candidateSlot = slotIndex;
+    for (final item in sorted) {
+      final task = item.task;
+      var remaining = task.estimatedEffortHours;
 
-      while (candidateDay <= 6) {
-        final key = '$candidateDay-$candidateSlot';
-        if (!scheduled.contains(key)) {
-          scheduled.add(key);
-          blocks.add(
-            StudyBlock(
-              task: scored[i].task,
-              scheduledDate: DateTime(now.year, now.month, now.day).add(Duration(days: candidateDay)),
-              timeSlot: slots[candidateSlot],
-            ),
-          );
-          break;
+      final deadlineDay = DateTime(task.deadline.year, task.deadline.month, task.deadline.day);
+      final daysUntilDue = max(1, deadlineDay.difference(today).inDays);
+
+      // All days available for this task (today through day before deadline,
+      // or just today if deadline is today/past)
+      final availDays = List.generate(daysUntilDue, (i) => today.add(Duration(days: i)));
+
+      if (availDays.length == 1) {
+        // No room to spread — schedule as much as today's budget allows
+        final day = availDays[0];
+        final b = budget[day] ?? 0;
+        final hours = min(remaining, b);
+        if (hours >= minChunk) {
+          budget[day] = b - hours;
+          chunks.add((task: task, date: day, hours: hours));
         }
-        candidateSlot++;
-        if (candidateSlot >= slots.length) {
-          candidateSlot = 0;
-          candidateDay++;
+      } else {
+        // Spread evenly: target hours per day = remaining / days available,
+        // capped at maxHoursPerDay so no single day is overloaded
+        final targetPerDay = (remaining / availDays.length).clamp(minChunk, maxHoursPerDay);
+
+        for (final day in availDays) {
+          if (remaining < minChunk) break;
+          final b = budget[day] ?? 0;
+          if (b < minChunk) continue;
+
+          // On the last available day take whatever is left (up to budget)
+          // so we don't leave work unscheduled
+          final isLast = day == availDays.last;
+          final take = min(isLast ? remaining : targetPerDay, min(remaining, b));
+          if (take < minChunk) continue;
+
+          budget[day] = b - take;
+          remaining -= take;
+          chunks.add((task: task, date: day, hours: take));
         }
       }
     }
 
-    return blocks;
+    // Sort by date so the widget shows a chronological plan
+    chunks.sort((a, b) => a.date.compareTo(b.date));
+
+    // Assign time slots sequentially within each day
+    const slots = ['9:00 AM', '11:00 AM', '1:00 PM', '3:00 PM', '5:00 PM', '7:00 PM'];
+    final slotIdx = <DateTime, int>{};
+
+    return chunks.map((c) {
+      final i = slotIdx[c.date] ?? 0;
+      slotIdx[c.date] = i + 1;
+      final slot = i < slots.length ? slots[i] : '${9 + (i * 2)}:00 PM';
+      return StudyBlock(task: c.task, scheduledDate: c.date, timeSlot: slot, hours: c.hours);
+    }).toList();
   }
 }
