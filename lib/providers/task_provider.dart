@@ -29,6 +29,14 @@ class TaskProvider extends ChangeNotifier {
 
   Stream<List<TaskModel>> taskStream(String uid) => _firestore.streamTasks(uid);
 
+  double priorityScore(TaskModel task, [DateTime? now]) {
+    final reference = now ?? DateTime.now();
+    final daysUntilDeadline = max(1, task.deadline.difference(reference).inDays + 1);
+    final deadlineUrgency = 1 / daysUntilDeadline;
+    final effortNormalized = min(1.0, task.estimatedEffortHours / 8.0);
+    return (task.courseWeight * 0.4) + (deadlineUrgency * 0.4) + (effortNormalized * 0.2);
+  }
+
   Future<void> addTask(TaskModel task) async {
     await _firestore.addTask(task);
     await _notification.scheduleDueSoonReminder(task);
@@ -38,6 +46,11 @@ class TaskProvider extends ChangeNotifier {
   Future<void> toggleDone(TaskModel task) async {
     final next = task.status == 'done' ? 'pending' : 'done';
     await _firestore.updateTaskStatus(task.id, next);
+    notifyListeners();
+  }
+
+  Future<void> deleteTask(TaskModel task) async {
+    await _firestore.deleteTask(task.id);
     notifyListeners();
   }
 
@@ -52,10 +65,7 @@ class TaskProvider extends ChangeNotifier {
     final now = DateTime.now();
 
     final scored = pending.map((task) {
-      final daysUntilDeadline = max(1, task.deadline.difference(now).inDays + 1);
-      final deadlineUrgency = 1 / daysUntilDeadline;
-      final effortNormalized = min(1.0, task.estimatedEffortHours / 8.0);
-      final score = (task.courseWeight * 0.4) + (deadlineUrgency * 0.4) + (effortNormalized * 0.2);
+      final score = priorityScore(task, now);
       return (task: task, score: score);
     }).toList()
       ..sort((a, b) => b.score.compareTo(a.score));

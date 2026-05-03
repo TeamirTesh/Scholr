@@ -19,14 +19,14 @@ class GroupsScreen extends StatelessWidget {
       child: Scaffold(
         appBar: AppBar(title: const Text('Groups'), bottom: const TabBar(tabs: [Tab(text: 'My Groups'), Tab(text: 'Discover')])),
         bottomNavigationBar: const MainNavBar(current: 2),
-        floatingActionButton: FloatingActionButton(onPressed: () => context.goNamed(AppRoutes.createGroup), child: const Icon(Icons.add)),
+        floatingActionButton: FloatingActionButton(onPressed: () => context.pushNamed(AppRoutes.createGroup), child: const Icon(Icons.add)),
         body: TabBarView(
           children: [
             StreamBuilder(
               stream: provider.myGroups(uid),
               builder: (_, snap) => ListView(
                 children: (snap.data ?? [])
-                    .map((g) => GroupCard(group: g, onTap: () => context.goNamed(AppRoutes.groupDetail, pathParameters: {'id': g.id})))
+                    .map((g) => GroupCard(group: g, onTap: () => context.pushNamed(AppRoutes.groupDetail, pathParameters: {'id': g.id})))
                     .toList(),
               ),
             ),
@@ -37,7 +37,7 @@ class GroupsScreen extends StatelessWidget {
                     .map(
                       (g) => GroupCard(
                         group: g,
-                        onTap: () => context.goNamed(AppRoutes.groupDetail, pathParameters: {'id': g.id}),
+                        onTap: () => context.pushNamed(AppRoutes.groupDetail, pathParameters: {'id': g.id}),
                         trailing: TextButton(onPressed: () => provider.joinGroup(g.id, uid), child: const Text('Join')),
                       ),
                     )

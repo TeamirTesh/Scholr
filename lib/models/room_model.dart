@@ -39,4 +39,24 @@ class RoomModel {
       'amenities': amenities,
     };
   }
+
+  RoomModel copyWith({
+    String? id,
+    String? name,
+    String? location,
+    int? capacity,
+    List<String>? availableSlots,
+    Map<String, String>? bookedBy,
+    List<String>? amenities,
+  }) {
+    return RoomModel(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      location: location ?? this.location,
+      capacity: capacity ?? this.capacity,
+      availableSlots: availableSlots ?? this.availableSlots,
+      bookedBy: bookedBy ?? this.bookedBy,
+      amenities: amenities ?? this.amenities,
+    );
+  }
 }

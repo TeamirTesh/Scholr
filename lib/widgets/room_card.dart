@@ -9,6 +9,7 @@ class RoomCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final slots = room.availableSlots;
     return Card(
       child: ExpansionTile(
         title: Text(room.name),
@@ -20,18 +21,42 @@ class RoomCard extends StatelessWidget {
             children: room.amenities.map((a) => Chip(label: Text(a))).toList(),
           ),
           const SizedBox(height: 8),
-          ...room.availableSlots.map((slot) {
-            final bookedBy = room.bookedBy[slot];
-            final mine = bookedBy == uid;
-            final available = bookedBy == null || mine;
-            return ListTile(
-              title: Text(slot),
-              trailing: ElevatedButton(
-                onPressed: available ? () => onBook(slot) : null,
-                child: Text(mine ? 'Cancel Booking' : (available ? 'Book' : 'Booked')),
-              ),
-            );
-          }),
+          if (slots.isEmpty)
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Text('No slots available'),
+            )
+          else
+            ...slots.map((slot) {
+              final bookedBy = room.bookedBy[slot];
+              final mine = bookedBy == uid;
+              final taken = bookedBy != null && !mine;
+              return ListTile(
+                title: Text(slot),
+                trailing: mine
+                    ? FilledButton.tonal(
+                        onPressed: () async {
+                          final ok = await showDialog<bool>(
+                            context: context,
+                            builder: (ctx) => AlertDialog(
+                              title: const Text('Cancel booking'),
+                              content: Text('Cancel your booking for $slot?'),
+                              actions: [
+                                TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('No')),
+                                FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Yes')),
+                              ],
+                            ),
+                          );
+                          if (ok == true && context.mounted) await onBook(slot);
+                        },
+                        child: const Text('✓ Booked'),
+                      )
+                    : ElevatedButton(
+                        onPressed: taken ? null : () => onBook(slot),
+                        child: Text(taken ? 'Booked' : 'Book'),
+                      ),
+              );
+            }),
         ],
       ),
     );

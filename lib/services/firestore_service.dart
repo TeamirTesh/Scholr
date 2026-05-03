@@ -71,6 +71,25 @@ class FirestoreService {
     }
   }
 
+  Future<void> deleteTask(String taskId) async {
+    try {
+      await tasks.doc(taskId).delete();
+    } catch (e, st) {
+      log('deleteTask failed', error: e, stackTrace: st);
+      rethrow;
+    }
+  }
+
+  Future<bool> isRoomsEmpty() async {
+    try {
+      final s = await rooms.limit(1).get();
+      return s.docs.isEmpty;
+    } catch (e, st) {
+      log('isRoomsEmpty failed', error: e, stackTrace: st);
+      rethrow;
+    }
+  }
+
   Stream<List<GroupModel>> streamMyGroups(String uid) {
     return groups.where('members', arrayContains: uid).snapshots().map(
       (s) => s.docs.map((d) => GroupModel.fromMap(d.id, d.data())).toList(),
@@ -81,6 +100,17 @@ class FirestoreService {
     return groups.snapshots().map(
       (s) => s.docs.map((d) => GroupModel.fromMap(d.id, d.data())).where((g) => !g.members.contains(uid)).toList(),
     );
+  }
+
+  Future<GroupModel?> getGroup(String groupId) async {
+    try {
+      final doc = await groups.doc(groupId).get();
+      if (!doc.exists || doc.data() == null) return null;
+      return GroupModel.fromMap(doc.id, doc.data()!);
+    } catch (e, st) {
+      log('getGroup failed', error: e, stackTrace: st);
+      rethrow;
+    }
   }
 
   Future<String> createGroup(GroupModel group) async {

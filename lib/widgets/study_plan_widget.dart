@@ -1,15 +1,27 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:scholr/providers/task_provider.dart';
+import 'package:scholr/utils/date_formatters.dart';
 
 class StudyPlanWidget extends StatelessWidget {
-  const StudyPlanWidget({super.key, required this.blocks});
+  const StudyPlanWidget({super.key, required this.blocks, this.emptyBecauseNoTasks = false});
+
   final List<StudyBlock> blocks;
+  final bool emptyBecauseNoTasks;
 
   @override
   Widget build(BuildContext context) {
     if (blocks.isEmpty) {
-      return const Card(child: Padding(padding: EdgeInsets.all(16), child: Text('No pending tasks to schedule.')));
+      return Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Text(
+            emptyBecauseNoTasks
+                ? 'Add tasks to generate your study plan'
+                : 'No pending tasks to schedule.',
+          ),
+        ),
+      );
     }
 
     final chartData = blocks.take(7).toList();
@@ -19,7 +31,7 @@ class StudyPlanWidget extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Weekly Study Plan', style: Theme.of(context).textTheme.titleLarge),
+            Text("This Week's Plan", style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 12),
             SizedBox(
               height: 180,
@@ -33,7 +45,12 @@ class StudyPlanWidget extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 12),
-            ...chartData.take(3).map((b) => Text('${b.timeSlot} · ${b.task.title}')),
+            ...chartData.take(5).map(
+              (b) => Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Text('${formatStudyBlockLine(b.scheduledDate, b.timeSlot)} · ${b.task.title}'),
+              ),
+            ),
           ],
         ),
       ),
