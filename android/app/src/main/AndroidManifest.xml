@@ -3,6 +3,10 @@
         android:label="scholr"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
+        <!-- Impeller + some x86 emulator GPU stacks can crash or drop the VM debug connection. -->
+        <meta-data
+            android:name="io.flutter.embedding.android.EnableImpeller"
+            android:value="false" />
         <activity
             android:name=".MainActivity"
             android:exported="true"

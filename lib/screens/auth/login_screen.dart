@@ -1,0 +1,60 @@
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
+import 'package:scholr/app/router.dart';
+import 'package:scholr/providers/auth_provider.dart';
+
+class LoginScreen extends StatefulWidget {
+  const LoginScreen({super.key});
+
+  @override
+  State<LoginScreen> createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends State<LoginScreen> {
+  final _email = TextEditingController();
+  final _password = TextEditingController();
+
+  @override
+  Widget build(BuildContext context) {
+    final auth = context.watch<AuthProvider>();
+    return Scaffold(
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text('Welcome Back', style: Theme.of(context).textTheme.headlineMedium),
+                const SizedBox(height: 16),
+                TextField(controller: _email, decoration: const InputDecoration(labelText: 'Email')),
+                const SizedBox(height: 12),
+                TextField(controller: _password, decoration: const InputDecoration(labelText: 'Password'), obscureText: true),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: auth.isLoading
+                      ? null
+                      : () async {
+                          await auth.login(_email.text.trim(), _password.text.trim());
+                        },
+                  child: const Text('Login'),
+                ),
+                const SizedBox(height: 8),
+                OutlinedButton(
+                  onPressed: auth.isLoading ? null : () => auth.signInWithGoogle(),
+                  child: const Text('Continue with Google'),
+                ),
+                TextButton(
+                  onPressed: () => context.goNamed(AppRoutes.signup),
+                  child: const Text('No account? Sign up'),
+                )
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
